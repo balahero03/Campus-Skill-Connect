@@ -14,7 +14,7 @@ const BrowseSkills = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    const categories = ['All', 'Design', 'Editing', 'Coding', 'Tutoring', 'Repair', 'Writing'];
+    const categories = ['All', 'Design', 'Editing', 'Coding', 'Tutoring', 'Repair', 'Writing', 'Others'];
 
     useEffect(() => {
         searchSkills();
@@ -122,8 +122,8 @@ const BrowseSkills = () => {
                                     key={category}
                                     onClick={() => handleCategoryChange(category)}
                                     className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${selectedCategory === category
-                                            ? 'bg-primary-500 text-white shadow-md'
-                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                        ? 'bg-primary-500 text-white shadow-md'
+                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                         }`}
                                 >
                                     {category}
