@@ -180,7 +180,8 @@ export const db = {
                 .from('chats')
                 .select(`
           *,
-          other_user:users!chats_other_user_id_fkey(id, name, avatar_url),
+          user1:users!user1_id(id, name, avatar_url),
+          user2:users!user2_id(id, name, avatar_url),
           messages(*)
         `)
                 .or(`user1_id.eq.${userId},user2_id.eq.${userId}`)

@@ -1,26 +1,78 @@
-// Review Page - Submit reviews and ratings
-import React, { useState } from 'react';
+// Review Page - Submit reviews to Supabase
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Button from '../components/Button';
 import RatingStars from '../components/RatingStars';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, AlertCircle } from 'lucide-react';
+import { db } from '../config/supabase';
+import { useAuth } from '../context/AuthContext';
 
 const Review = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const { user } = useAuth();
+    const [skill, setSkill] = useState(null);
     const [rating, setRating] = useState(0);
     const [feedback, setFeedback] = useState('');
     const [submitted, setSubmitted] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState(null);
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        // Mock submission
-        setSubmitted(true);
-        setTimeout(() => {
-            navigate('/dashboard');
-        }, 2000);
+    useEffect(() => {
+        loadSkill();
+    }, [id]);
+
+    const loadSkill = async () => {
+        const { data, error } = await db.skills.getById(id);
+        if (error) {
+            setError('Failed to load skill details');
+        } else {
+            setSkill(data);
+        }
+        setLoading(false);
     };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setSubmitting(true);
+        setError(null);
+
+        if (!user) {
+            setError('You must be logged in to submit a review');
+            setSubmitting(false);
+            return;
+        }
+
+        const reviewData = {
+            skill_id: id,
+            user_id: user.id,
+            rating: rating,
+            comment: feedback,
+        };
+
+        const { error: submitError } = await db.reviews.create(reviewData);
+
+        if (submitError) {
+            console.error('Error submitting review:', submitError);
+            setError('Failed to submit review. Please try again.');
+            setSubmitting(false);
+        } else {
+            setSubmitted(true);
+            setTimeout(() => {
+                navigate(`/skill/${id}`);
+            }, 2000);
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+            </div>
+        );
+    }
 
     if (submitted) {
         return (
@@ -34,7 +86,7 @@ const Review = () => {
                         <div className="flex justify-center mb-4">
                             <RatingStars rating={rating} size={32} readonly />
                         </div>
-                        <p className="text-sm text-gray-500">Redirecting to dashboard...</p>
+                        <p className="text-sm text-gray-500">Redirecting to skill page...</p>
                     </div>
                 </div>
             </div>
@@ -50,11 +102,20 @@ const Review = () => {
                 <p className="text-gray-600 mb-8">Share your experience with the service</p>
 
                 <form onSubmit={handleSubmit} className="card">
+                    {error && (
+                        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start">
+                            <AlertCircle className="text-red-600 flex-shrink-0 mr-3 mt-0.5" size={20} />
+                            <p className="text-red-700 text-sm font-medium">{error}</p>
+                        </div>
+                    )}
+
                     {/* Service Info */}
-                    <div className="mb-8 pb-6 border-b border-gray-200">
-                        <h2 className="text-xl font-semibold text-gray-900 mb-2">Website Development</h2>
-                        <p className="text-gray-600">Provider: Priya Sharma</p>
-                    </div>
+                    {skill && (
+                        <div className="mb-8 pb-6 border-b border-gray-200">
+                            <h2 className="text-xl font-semibold text-gray-900 mb-2">{skill.title}</h2>
+                            <p className="text-gray-600">Provider: {skill.provider?.name || 'Student'}</p>
+                        </div>
+                    )}
 
                     {/* Rating Section */}
                     <div className="mb-8">
@@ -108,13 +169,25 @@ const Review = () => {
 
                     {/* Submit Button */}
                     <div className="flex gap-4">
-                        <Button type="submit" disabled={rating === 0} className="flex-1">
-                            Submit Review
+                        <Button
+                            type="submit"
+                            disabled={rating === 0 || submitting}
+                            className="flex-1 flex items-center justify-center"
+                        >
+                            {submitting ? (
+                                <>
+                                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                                    Submitting...
+                                </>
+                            ) : (
+                                'Submit Review'
+                            )}
                         </Button>
                         <Button
                             type="button"
                             variant="outline"
-                            onClick={() => navigate('/dashboard')}
+                            onClick={() => navigate(`/skill/${id}`)}
+                            disabled={submitting}
                         >
                             Cancel
                         </Button>

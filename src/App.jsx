@@ -1,6 +1,6 @@
-// App.jsx - Main application with routing and profile setup redirect
+// App.jsx - Enforcing Profile Setup without loops
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 // Pages
@@ -15,7 +15,7 @@ import SubmitWork from './pages/SubmitWork';
 import Review from './pages/Review';
 import Profile from './pages/Profile';
 
-// Loading Component
+// Loading Screen
 const LoadingScreen = () => (
   <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center">
     <div className="text-center">
@@ -25,28 +25,25 @@ const LoadingScreen = () => (
   </div>
 );
 
-// Protected Route Component - Checks if profile is complete
+// 1. Basic Auth Check
 const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, loading, userProfile } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
+  if (loading) return <LoadingScreen />;
+  if (!isAuthenticated) return <Navigate to="/" replace />;
+  return children;
+};
 
-  if (loading) {
-    return <LoadingScreen />;
-  }
+// 2. Profile Completion Check (New!)
+const RequireProfile = ({ children }) => {
+  const { userProfile, loading } = useAuth();
 
-  if (!isAuthenticated) {
-    return <Navigate to="/" replace />;
-  }
+  if (loading) return <LoadingScreen />;
 
-  // Check if profile needs completion (no department or year set)
-  const needsSetup = !userProfile?.department || !userProfile?.year;
+  // Check if profile exists and has required fields
+  const isProfileComplete = userProfile?.department && userProfile?.year;
 
-  // Allow profile-setup page itself
-  if (window.location.pathname === '/profile-setup') {
-    return children;
-  }
-
-  // Redirect to setup if profile incomplete
-  if (needsSetup) {
+  if (!isProfileComplete) {
+    // Redirect to setup if incomplete
     return <Navigate to="/profile-setup" replace />;
   }
 
@@ -54,96 +51,43 @@ const ProtectedRoute = ({ children }) => {
 };
 
 function AppRoutes() {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, userProfile } = useAuth();
 
-  // Show loading screen while checking authentication
-  if (loading) {
-    return <LoadingScreen />;
-  }
+  if (loading) return <LoadingScreen />;
 
   return (
     <Routes>
-      {/* Public Route - Login */}
+      {/* Public Route */}
       <Route
         path="/"
-        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />}
+        element={
+          isAuthenticated
+            ? <Navigate to="/dashboard" replace />
+            : <Login />
+        }
       />
 
-      {/* Profile Setup - Semi-protected (only for authenticated users) */}
+      {/* Profile Setup - Protected by Auth, but NOT by Profile Check */}
       <Route
         path="/profile-setup"
         element={
-          isAuthenticated ? <ProfileSetup /> : <Navigate to="/" replace />
-        }
-      />
-
-      {/* Protected Routes */}
-      <Route
-        path="/dashboard"
-        element={
           <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/browse-skills"
-        element={
-          <ProtectedRoute>
-            <BrowseSkills />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/post-skill"
-        element={
-          <ProtectedRoute>
-            <PostSkill />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/skill/:id"
-        element={
-          <ProtectedRoute>
-            <SkillDetails />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/chat"
-        element={
-          <ProtectedRoute>
-            <Chat />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/submit-work"
-        element={
-          <ProtectedRoute>
-            <SubmitWork />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/review/:id"
-        element={
-          <ProtectedRoute>
-            <Review />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/profile"
-        element={
-          <ProtectedRoute>
-            <Profile />
+            <ProfileSetup />
           </ProtectedRoute>
         }
       />
 
-      {/* Catch all - redirect to dashboard or login */}
+      {/* Main App Routes - Protected by Auth AND Profile Check */}
+      <Route path="/dashboard" element={<ProtectedRoute><RequireProfile><Dashboard /></RequireProfile></ProtectedRoute>} />
+      <Route path="/browse-skills" element={<ProtectedRoute><RequireProfile><BrowseSkills /></RequireProfile></ProtectedRoute>} />
+      <Route path="/post-skill" element={<ProtectedRoute><RequireProfile><PostSkill /></RequireProfile></ProtectedRoute>} />
+      <Route path="/skill/:id" element={<ProtectedRoute><RequireProfile><SkillDetails /></RequireProfile></ProtectedRoute>} />
+      <Route path="/chat" element={<ProtectedRoute><RequireProfile><Chat /></RequireProfile></ProtectedRoute>} />
+      <Route path="/submit-work" element={<ProtectedRoute><RequireProfile><SubmitWork /></RequireProfile></ProtectedRoute>} />
+      <Route path="/review/:id" element={<ProtectedRoute><RequireProfile><Review /></RequireProfile></ProtectedRoute>} />
+      <Route path="/profile" element={<ProtectedRoute><RequireProfile><Profile /></RequireProfile></ProtectedRoute>} />
+
+      {/* Catch all */}
       <Route path="*" element={<Navigate to={isAuthenticated ? "/dashboard" : "/"} replace />} />
     </Routes>
   );

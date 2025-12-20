@@ -42,12 +42,23 @@ const ProfileSetup = () => {
         setLoading(true);
         setError(null);
 
-        const { error } = await updateProfile(formData);
+        // Clean data: Convert empty strings to null for optional fields
+        const updates = {
+            ...formData,
+            phone: formData.phone.trim() || null,
+            bio: formData.bio.trim() || null,
+        };
+
+        console.log('ProfileSetup: Submitting', updates);
+
+        const { error } = await updateProfile(updates);
 
         if (error) {
+            console.error('ProfileSetup: Error', error);
             setError('Failed to update profile. Please try again.');
             setLoading(false);
         } else {
+            console.log('ProfileSetup: Success');
             // Success - redirect to dashboard
             navigate('/dashboard');
         }

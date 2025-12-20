@@ -1,10 +1,42 @@
--- CampusSkillConnect Database Schema for Supabase
--- Run this SQL in your Supabase SQL Editor
+-- ============================
+-- 1. DROP EXISTING OBJECTS
+-- ============================
 
--- Enable UUID extension
+-- Drop triggers first
+DROP TRIGGER IF EXISTS update_users_updated_at ON users;
+DROP TRIGGER IF EXISTS update_skills_updated_at ON skills;
+DROP TRIGGER IF EXISTS update_chats_updated_at ON chats;
+
+-- Drop functions
+DROP FUNCTION IF EXISTS update_updated_at_column();
+DROP FUNCTION IF EXISTS calculate_skill_rating(UUID);
+
+-- Drop tables in dependency order
+DROP TABLE IF EXISTS messages CASCADE;
+DROP TABLE IF EXISTS chats CASCADE;
+DROP TABLE IF EXISTS reviews CASCADE;
+DROP TABLE IF EXISTS skills CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+
+-- Drop storage policies (safe even if they don’t exist)
+DROP POLICY IF EXISTS "Anyone can view skill images" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can upload skill images" ON storage.objects;
+DROP POLICY IF EXISTS "Users can update own skill images" ON storage.objects;
+DROP POLICY IF EXISTS "Users can delete own skill images" ON storage.objects;
+
+-- Drop storage bucket
+DELETE FROM storage.buckets WHERE id = 'skill-images';
+
+-- ============================
+-- 2. EXTENSIONS
+-- ============================
+
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Users table (extends Supabase auth.users)
+-- ============================
+-- 3. USERS TABLE
+-- ============================
+
 CREATE TABLE users (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT UNIQUE NOT NULL,
@@ -18,45 +50,43 @@ CREATE TABLE users (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Enable Row Level Security
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 
--- Users policies
 CREATE POLICY "Users can view all profiles"
   ON users FOR SELECT
   USING (true);
-
-CREATE POLICY "Users can update own profile"
-  ON users FOR UPDATE
-  USING (auth.uid() = id);
 
 CREATE POLICY "Users can insert own profile"
   ON users FOR INSERT
   WITH CHECK (auth.uid() = id);
 
--- Skills table
+CREATE POLICY "Users can update own profile"
+  ON users FOR UPDATE
+  USING (auth.uid() = id);
+
+-- ============================
+-- 4. SKILLS TABLE
+-- ============================
+
 CREATE TABLE skills (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   provider_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   description TEXT NOT NULL,
   category TEXT NOT NULL,
-  price DECIMAL(10, 2) NOT NULL,
+  price DECIMAL(10,2) NOT NULL,
   availability TEXT DEFAULT 'Available',
   image_url TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Skills indexes
 CREATE INDEX skills_provider_id_idx ON skills(provider_id);
 CREATE INDEX skills_category_idx ON skills(category);
 CREATE INDEX skills_created_at_idx ON skills(created_at DESC);
 
--- Enable RLS
 ALTER TABLE skills ENABLE ROW LEVEL SECURITY;
 
--- Skills policies
 CREATE POLICY "Anyone can view skills"
   ON skills FOR SELECT
   USING (true);
@@ -73,30 +103,30 @@ CREATE POLICY "Users can delete own skills"
   ON skills FOR DELETE
   USING (auth.uid() = provider_id);
 
--- Reviews table
+-- ============================
+-- 5. REVIEWS TABLE
+-- ============================
+
 CREATE TABLE reviews (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   skill_id UUID NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
   reviewer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
   comment TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(skill_id, reviewer_id)
+  UNIQUE (skill_id, reviewer_id)
 );
 
--- Reviews indexes
 CREATE INDEX reviews_skill_id_idx ON reviews(skill_id);
 CREATE INDEX reviews_reviewer_id_idx ON reviews(reviewer_id);
 
--- Enable RLS
 ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
 
--- Reviews policies
 CREATE POLICY "Anyone can view reviews"
   ON reviews FOR SELECT
   USING (true);
 
-CREATE POLICY "Authenticated users can create reviews"
+CREATE POLICY "Users can create reviews"
   ON reviews FOR INSERT
   WITH CHECK (auth.uid() = reviewer_id);
 
@@ -108,7 +138,10 @@ CREATE POLICY "Users can delete own reviews"
   ON reviews FOR DELETE
   USING (auth.uid() = reviewer_id);
 
--- Chats table
+-- ============================
+-- 6. CHATS TABLE
+-- ============================
+
 CREATE TABLE chats (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user1_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -116,17 +149,14 @@ CREATE TABLE chats (
   skill_id UUID REFERENCES skills(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(user1_id, user2_id, skill_id)
+  UNIQUE (user1_id, user2_id, skill_id)
 );
 
--- Chats indexes
 CREATE INDEX chats_user1_id_idx ON chats(user1_id);
 CREATE INDEX chats_user2_id_idx ON chats(user2_id);
 
--- Enable RLS
 ALTER TABLE chats ENABLE ROW LEVEL SECURITY;
 
--- Chats policies
 CREATE POLICY "Users can view own chats"
   ON chats FOR SELECT
   USING (auth.uid() = user1_id OR auth.uid() = user2_id);
@@ -135,7 +165,10 @@ CREATE POLICY "Users can create chats"
   ON chats FOR INSERT
   WITH CHECK (auth.uid() = user1_id OR auth.uid() = user2_id);
 
--- Messages table
+-- ============================
+-- 7. MESSAGES TABLE
+-- ============================
+
 CREATE TABLE messages (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   chat_id UUID NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
@@ -145,15 +178,12 @@ CREATE TABLE messages (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Messages indexes
 CREATE INDEX messages_chat_id_idx ON messages(chat_id);
 CREATE INDEX messages_sender_id_idx ON messages(sender_id);
 CREATE INDEX messages_created_at_idx ON messages(created_at);
 
--- Enable RLS
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 
--- Messages policies
 CREATE POLICY "Users can view messages in their chats"
   ON messages FOR SELECT
   USING (
@@ -164,7 +194,7 @@ CREATE POLICY "Users can view messages in their chats"
     )
   );
 
-CREATE POLICY "Users can send messages in their chats"
+CREATE POLICY "Users can send messages"
   ON messages FOR INSERT
   WITH CHECK (
     auth.uid() = sender_id
@@ -175,7 +205,10 @@ CREATE POLICY "Users can send messages in their chats"
     )
   );
 
--- Function to update updated_at timestamp
+-- ============================
+-- 8. FUNCTIONS & TRIGGERS
+-- ============================
+
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -184,34 +217,35 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Triggers for updated_at
-CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_users_updated_at
+BEFORE UPDATE ON users
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_skills_updated_at BEFORE UPDATE ON skills
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_skills_updated_at
+BEFORE UPDATE ON skills
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_chats_updated_at BEFORE UPDATE ON chats
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_chats_updated_at
+BEFORE UPDATE ON chats
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Function to calculate average rating
 CREATE OR REPLACE FUNCTION calculate_skill_rating(skill_uuid UUID)
 RETURNS DECIMAL AS $$
-DECLARE
-  avg_rating DECIMAL;
 BEGIN
-  SELECT COALESCE(AVG(rating), 0) INTO avg_rating
-  FROM reviews
-  WHERE skill_id = skill_uuid;
-  RETURN avg_rating;
+  RETURN COALESCE(
+    (SELECT AVG(rating) FROM reviews WHERE skill_id = skill_uuid),
+    0
+  );
 END;
 $$ LANGUAGE plpgsql;
 
--- Storage bucket for skill images
+-- ============================
+-- 9. STORAGE BUCKET
+-- ============================
+
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('skill-images', 'skill-images', true);
 
--- Storage policy for skill images
 CREATE POLICY "Anyone can view skill images"
   ON storage.objects FOR SELECT
   USING (bucket_id = 'skill-images');
@@ -230,9 +264,14 @@ CREATE POLICY "Users can update own skill images"
     AND auth.uid()::text = (storage.foldername(name))[1]
   );
 
-CREATE POLICY "Users can delete own skill images"
-  ON storage.objects FOR DELETE
-  USING (
-    bucket_id = 'skill-images'
     AND auth.uid()::text = (storage.foldername(name))[1]
   );
+
+-- ============================
+-- 10. PERMISSIONS
+-- ============================
+
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL ROUTINES IN SCHEMA public TO anon, authenticated, service_role;

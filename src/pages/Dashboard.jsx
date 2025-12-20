@@ -70,9 +70,25 @@ const Dashboard = () => {
                             </span>
                         </div>
 
-                        <h1 className="text-4xl font-bold text-white mb-3">
+                        <h1 className="text-4xl font-bold text-white mb-2">
                             Hello, {userProfile?.name || 'Student'}! 👋
                         </h1>
+
+                        {/* Display User Department & Year if available */}
+                        {(userProfile?.department || userProfile?.year) && (
+                            <div className="flex items-center space-x-3 text-primary-100 mb-4 text-sm font-medium">
+                                {userProfile?.department && (
+                                    <span className="bg-white/20 px-3 py-1 rounded-full backdrop-blur-sm">
+                                        {userProfile.department}
+                                    </span>
+                                )}
+                                {userProfile?.year && (
+                                    <span className="bg-white/20 px-3 py-1 rounded-full backdrop-blur-sm">
+                                        {userProfile.year}
+                                    </span>
+                                )}
+                            </div>
+                        )}
 
                         <p className="text-primary-50 text-lg mb-6 max-w-2xl">
                             Discover talented students from Thiagarajar Polytechnic College, collaborate on exciting projects, and monetize your skills within our campus community.
@@ -81,7 +97,7 @@ const Dashboard = () => {
                         <div className="flex flex-wrap gap-4">
                             <Button
                                 onClick={() => navigate('/browse-skills')}
-                                className="bg-white text-primary-600 hover:bg-primary-50 shadow-lg hover:shadow-xl transition-all"
+                                className="bg-primary-600 text-white border-2 border-white hover:bg-primary-700 shadow-lg hover:shadow-xl transition-all font-bold"
                             >
                                 <TrendingUp size={20} className="mr-2" />
                                 Explore Skills
@@ -89,7 +105,7 @@ const Dashboard = () => {
                             <Button
                                 onClick={() => navigate('/post-skill')}
                                 variant="outline"
-                                className="bg-primary-700/30 backdrop-blur-sm text-white border-white/30 hover:bg-primary-700/50 hover:border-white/50 shadow-lg"
+                                className="bg-primary-700/30 backdrop-blur-sm text-white border-white/40 hover:bg-primary-700/50 hover:border-white shadow-lg"
                             >
                                 <Plus size={20} className="mr-2" />
                                 Share Your Skill

@@ -17,6 +17,7 @@ const SkillCard = ({ skill }) => {
                 <Briefcase className="text-primary-500" size={48} />
             </div>
 
+
             {/* Skill Title */}
             <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-1">
                 {skill.title}
@@ -27,7 +28,10 @@ const SkillCard = ({ skill }) => {
                 <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
                     <User size={16} className="text-gray-600" />
                 </div>
-                <span className="text-sm text-gray-600">{skill.provider}</span>
+                <div className="text-sm">
+                    <p className="font-medium text-gray-900 leading-none">{skill.provider?.name || 'Student'}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{skill.provider?.department || 'TPC Student'}</p>
+                </div>
             </div>
 
             {/* Rating and Price */}
