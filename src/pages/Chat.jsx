@@ -47,8 +47,8 @@ const Chat = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
 
-    const loadChats = async () => {
-        setLoading(true);
+    const loadChats = async (silent = false) => {
+        if (!silent) setLoading(true);
         const { data, error } = await db.chats.getByUserId(user.id);
         if (error) {
             console.error('Error loading chats:', error);
@@ -59,14 +59,17 @@ const Chat = () => {
                 const otherUser = isUser1 ? chat.user2 : chat.user1;
                 const otherUserId = isUser1 ? chat.user2_id : chat.user1_id;
 
+                // Sort messages to find latest
+                const sortedMessages = chat.messages?.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)) || [];
+                const lastMsg = sortedMessages[0];
+
                 return {
                     ...chat,
                     otherUserId,
                     name: otherUser?.name || 'User',
                     avatar_url: otherUser?.avatar_url,
-                    // Sort messages desc to get latest
-                    lastMessage: chat.messages?.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0]?.text || 'No messages yet',
-                    lastMessageTime: chat.messages?.[0]?.created_at
+                    lastMessage: lastMsg?.text || 'No messages yet',
+                    lastMessageTime: lastMsg?.created_at
                 };
             });
             setChats(formattedChats);
@@ -79,7 +82,7 @@ const Chat = () => {
                 }
             }
         }
-        setLoading(false);
+        if (!silent) setLoading(false);
     };
 
     const loadMessages = async (chatId) => {
@@ -107,7 +110,11 @@ const Chat = () => {
                     filter: `chat_id=eq.${chatId}`,
                 },
                 (payload) => {
-                    setMessages((prev) => [...prev, payload.new]);
+                    // Dedupe messages (in case optimistic update already added it)
+                    setMessages((prev) => {
+                        if (prev.some(m => m.id === payload.new.id)) return prev;
+                        return [...prev, payload.new];
+                    });
                 }
             )
             .subscribe();
@@ -117,19 +124,35 @@ const Chat = () => {
         e.preventDefault();
         if (!newMessage.trim() || !selectedChat) return;
 
+        const text = newMessage.trim();
+
+        // Optimistic: Clear input immediately
+        setNewMessage('');
+
         const messageData = {
             chat_id: selectedChat.id,
             sender_id: user.id,
-            text: newMessage.trim(),
+            text: text,
         };
 
-        const { error } = await db.messages.send(messageData);
+        const { data, error } = await db.messages.send(messageData);
 
         if (error) {
             console.error('Error sending message:', error);
-            alert('Failed to send message');
-        } else {
-            setNewMessage('');
+            alert(`Failed to send message: ${error.message || 'Unknown error'}`);
+            setNewMessage(text);
+        } else if (data) {
+            // Manually add to list if not already there
+            setMessages((prev) => {
+                if (prev.some(m => m.id === data.id)) return prev;
+                return [...prev, data];
+            });
+
+            // Update chat timestamp to move it to top
+            await db.chats.update(selectedChat.id, { updated_at: new Date().toISOString() });
+
+            // Refresh chat list (silent)
+            loadChats(true);
         }
     };
 
@@ -140,7 +163,7 @@ const Chat = () => {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <h1 className="text-3xl font-bold text-gray-900 mb-6">Messages</h1>
 
-                <div className="card p-0 overflow-hidden" style={{ height: '600px' }}>
+                <div className="card p-0 overflow-hidden h-[600px] md:h-[calc(100vh-140px)]">
                     <div className="grid grid-cols-12 h-full">
                         {/* Chat List - Left Column */}
                         <div className="col-span-12 md:col-span-4 border-r border-gray-200 overflow-y-auto bg-white">

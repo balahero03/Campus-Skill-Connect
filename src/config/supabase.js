@@ -197,6 +197,16 @@ export const db = {
                 .single();
             return { data, error };
         },
+
+        update: async (id, updates) => {
+            const { data, error } = await supabase
+                .from('chats')
+                .update(updates)
+                .eq('id', id)
+                .select()
+                .single();
+            return { data, error };
+        },
     },
 
     // Messages
