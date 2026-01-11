@@ -51,16 +51,29 @@ const ProfileSetup = () => {
 
         console.log('ProfileSetup: Submitting', updates);
 
-        const { error } = await updateProfile(updates);
+        try {
+            // Add timeout to prevent infinite loading
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Request timed out. Please try again.')), 10000)
+            );
 
-        if (error) {
-            console.error('ProfileSetup: Error', error);
-            setError('Failed to update profile. Please try again.');
+            const updatePromise = updateProfile(updates);
+            const result = await Promise.race([updatePromise, timeoutPromise]);
+
+            if (result.error) {
+                console.error('ProfileSetup: Error', result.error);
+                setError(result.error.message || 'Failed to update profile. Please try again.');
+                setLoading(false);
+            } else {
+                console.log('ProfileSetup: Success');
+                setLoading(false);
+                // Success - redirect to dashboard
+                navigate('/dashboard');
+            }
+        } catch (error) {
+            console.error('ProfileSetup: Catch error', error);
+            setError(error.message || 'An unexpected error occurred. Please try again.');
             setLoading(false);
-        } else {
-            console.log('ProfileSetup: Success');
-            // Success - redirect to dashboard
-            navigate('/dashboard');
         }
     };
 

@@ -15,6 +15,7 @@ const Chat = () => {
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const messagesEndRef = useRef(null);
     const subscriptionRef = useRef(null);
 
@@ -22,6 +23,9 @@ const Chat = () => {
     useEffect(() => {
         if (user) {
             loadChats();
+        } else {
+            setLoading(false);
+            setError('Please log in to view chats');
         }
     }, [user]);
 
@@ -48,41 +52,59 @@ const Chat = () => {
     };
 
     const loadChats = async (silent = false) => {
-        if (!silent) setLoading(true);
-        const { data, error } = await db.chats.getByUserId(user.id);
-        if (error) {
-            console.error('Error loading chats:', error);
-        } else {
-            // Format chats for display
-            const formattedChats = data.map(chat => {
-                const isUser1 = chat.user1_id === user.id;
-                const otherUser = isUser1 ? chat.user2 : chat.user1;
-                const otherUserId = isUser1 ? chat.user2_id : chat.user1_id;
+        if (!silent) {
+            setLoading(true);
+            setError(null);
+        }
 
-                // Sort messages to find latest
-                const sortedMessages = chat.messages?.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)) || [];
-                const lastMsg = sortedMessages[0];
+        try {
+            // Add timeout to prevent infinite loading
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Request timed out')), 10000)
+            );
 
-                return {
-                    ...chat,
-                    otherUserId,
-                    name: otherUser?.name || 'User',
-                    avatar_url: otherUser?.avatar_url,
-                    lastMessage: lastMsg?.content || 'No messages yet',
-                    lastMessageTime: lastMsg?.created_at
-                };
-            });
-            setChats(formattedChats);
+            const fetchPromise = db.chats.getByUserId(user.id);
+            const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
 
-            // Check for chat ID in navigation state (Auto-select chat)
-            if (location.state?.chatId) {
-                const targetChat = formattedChats.find(c => c.id === location.state.chatId);
-                if (targetChat) {
-                    setSelectedChat(targetChat);
+            if (error) {
+                console.error('Error loading chats:', error);
+                if (!silent) setError(error.message || 'Failed to load chats');
+            } else {
+                // Format chats for display
+                const formattedChats = (data || []).map(chat => {
+                    const isUser1 = chat.user1_id === user.id;
+                    const otherUser = isUser1 ? chat.user2 : chat.user1;
+                    const otherUserId = isUser1 ? chat.user2_id : chat.user1_id;
+
+                    // Sort messages to find latest
+                    const sortedMessages = chat.messages?.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)) || [];
+                    const lastMsg = sortedMessages[0];
+
+                    return {
+                        ...chat,
+                        otherUserId,
+                        name: otherUser?.name || 'User',
+                        avatar_url: otherUser?.avatar_url,
+                        lastMessage: lastMsg?.content || 'No messages yet',
+                        lastMessageTime: lastMsg?.created_at
+                    };
+                });
+                setChats(formattedChats);
+
+                // Check for chat ID in navigation state (Auto-select chat)
+                if (location.state?.chatId) {
+                    const targetChat = formattedChats.find(c => c.id === location.state.chatId);
+                    if (targetChat) {
+                        setSelectedChat(targetChat);
+                    }
                 }
             }
+        } catch (err) {
+            console.error('Error loading chats:', err);
+            if (!silent) setError(err.message || 'Failed to load chats');
+        } finally {
+            if (!silent) setLoading(false);
         }
-        if (!silent) setLoading(false);
     };
 
     const loadMessages = async (chatId) => {
@@ -169,6 +191,18 @@ const Chat = () => {
                         <div className="col-span-12 md:col-span-4 border-r border-gray-200 overflow-y-auto bg-white">
                             {loading ? (
                                 <div className="p-4 text-center text-gray-500">Loading chats...</div>
+                            ) : error ? (
+                                <div className="p-8 text-center text-red-500 flex flex-col items-center">
+                                    <MessageSquare size={40} className="mb-2 text-red-300" />
+                                    <p className="font-medium">Error loading chats</p>
+                                    <p className="text-xs mt-1 text-red-400">{error}</p>
+                                    <button
+                                        onClick={() => loadChats()}
+                                        className="mt-3 px-4 py-2 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700 transition-colors"
+                                    >
+                                        Retry
+                                    </button>
+                                </div>
                             ) : chats.length === 0 ? (
                                 <div className="p-8 text-center text-gray-500 flex flex-col items-center">
                                     <MessageSquare size={40} className="mb-2 text-gray-300" />
