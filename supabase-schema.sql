@@ -1,4 +1,9 @@
 -- ============================
+-- Campus Skill Connect - Complete Database Schema
+-- Run this entire file in Supabase SQL Editor
+-- ============================
+
+-- ============================
 -- 1. DROP EXISTING OBJECTS
 -- ============================
 
@@ -11,18 +16,43 @@ DROP TRIGGER IF EXISTS update_chats_updated_at ON chats;
 DROP FUNCTION IF EXISTS update_updated_at_column();
 DROP FUNCTION IF EXISTS calculate_skill_rating(UUID);
 
+-- Drop policies
+DROP POLICY IF EXISTS "Users can view all profiles" ON users;
+DROP POLICY IF EXISTS "Users can insert own profile" ON users;
+DROP POLICY IF EXISTS "Users can update own profile" ON users;
+
+DROP POLICY IF EXISTS "Anyone can view skills" ON skills;
+DROP POLICY IF EXISTS "Users can create skills" ON skills;
+DROP POLICY IF EXISTS "Users can update own skills" ON skills;
+DROP POLICY IF EXISTS "Users can delete own skills" ON skills;
+
+DROP POLICY IF EXISTS "Anyone can view reviews" ON reviews;
+DROP POLICY IF EXISTS "Users can create reviews" ON reviews;
+DROP POLICY IF EXISTS "Users can update own reviews" ON reviews;
+DROP POLICY IF EXISTS "Users can delete own reviews" ON reviews;
+
+DROP POLICY IF EXISTS "Users can view own chats" ON chats;
+DROP POLICY IF EXISTS "Users can create chats" ON chats;
+DROP POLICY IF EXISTS "Authenticated can update chats" ON chats;
+DROP POLICY IF EXISTS "Authenticated can view chats" ON chats;
+
+DROP POLICY IF EXISTS "Users can view messages in their chats" ON messages;
+DROP POLICY IF EXISTS "Users can send messages" ON messages;
+DROP POLICY IF EXISTS "Authenticated can insert messages" ON messages;
+DROP POLICY IF EXISTS "Authenticated can view messages" ON messages;
+
+-- Drop storage policies
+DROP POLICY IF EXISTS "Anyone can view skill images" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can upload skill images" ON storage.objects;
+DROP POLICY IF EXISTS "Users can update own skill images" ON storage.objects;
+DROP POLICY IF EXISTS "Users can delete own skill images" ON storage.objects;
+
 -- Drop tables in dependency order
 DROP TABLE IF EXISTS messages CASCADE;
 DROP TABLE IF EXISTS chats CASCADE;
 DROP TABLE IF EXISTS reviews CASCADE;
 DROP TABLE IF EXISTS skills CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
-
--- Drop storage policies (safe even if they don’t exist)
-DROP POLICY IF EXISTS "Anyone can view skill images" ON storage.objects;
-DROP POLICY IF EXISTS "Authenticated users can upload skill images" ON storage.objects;
-DROP POLICY IF EXISTS "Users can update own skill images" ON storage.objects;
-DROP POLICY IF EXISTS "Users can delete own skill images" ON storage.objects;
 
 -- Drop storage bucket
 DELETE FROM storage.buckets WHERE id = 'skill-images';
@@ -84,6 +114,10 @@ CREATE TABLE skills (
 CREATE INDEX skills_provider_id_idx ON skills(provider_id);
 CREATE INDEX skills_category_idx ON skills(category);
 CREATE INDEX skills_created_at_idx ON skills(created_at DESC);
+
+-- Text search optimization indexes
+CREATE INDEX skills_title_idx ON skills USING gin(to_tsvector('english', title));
+CREATE INDEX skills_description_idx ON skills USING gin(to_tsvector('english', description));
 
 ALTER TABLE skills ENABLE ROW LEVEL SECURITY;
 
@@ -165,6 +199,10 @@ CREATE POLICY "Users can create chats"
   ON chats FOR INSERT
   WITH CHECK (auth.uid() = user1_id OR auth.uid() = user2_id);
 
+CREATE POLICY "Users can update own chats"
+  ON chats FOR UPDATE
+  USING (auth.uid() = user1_id OR auth.uid() = user2_id);
+
 -- ============================
 -- 7. MESSAGES TABLE
 -- ============================
@@ -244,7 +282,8 @@ $$ LANGUAGE plpgsql;
 -- ============================
 
 INSERT INTO storage.buckets (id, name, public)
-VALUES ('skill-images', 'skill-images', true);
+VALUES ('skill-images', 'skill-images', true)
+ON CONFLICT (id) DO NOTHING;
 
 CREATE POLICY "Anyone can view skill images"
   ON storage.objects FOR SELECT
@@ -264,6 +303,10 @@ CREATE POLICY "Users can update own skill images"
     AND auth.uid()::text = (storage.foldername(name))[1]
   );
 
+CREATE POLICY "Users can delete own skill images"
+  ON storage.objects FOR DELETE
+  USING (
+    bucket_id = 'skill-images'
     AND auth.uid()::text = (storage.foldername(name))[1]
   );
 
@@ -275,3 +318,9 @@ GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL ROUTINES IN SCHEMA public TO anon, authenticated, service_role;
+
+-- ============================
+-- SETUP COMPLETE
+-- ============================
+-- Your database is now ready to use!
+-- All tables, policies, triggers, and storage buckets have been created.

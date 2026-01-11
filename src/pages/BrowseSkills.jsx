@@ -13,11 +13,20 @@ const BrowseSkills = () => {
     const [skills, setSkills] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [isTyping, setIsTyping] = useState(false);
 
     const categories = ['All', 'Design', 'Editing', 'Coding', 'Tutoring', 'Repair', 'Writing', 'Others'];
 
+    // Debounced search - only search after user stops typing for 500ms
     useEffect(() => {
-        searchSkills();
+        setIsTyping(true);
+        const delaySearch = setTimeout(() => {
+            searchSkills();
+            setIsTyping(false);
+        }, 500);
+
+        // Cleanup timeout if user types again
+        return () => clearTimeout(delaySearch);
     }, [searchQuery, selectedCategory]);
 
     const searchSkills = async () => {
@@ -108,6 +117,10 @@ const BrowseSkills = () => {
                                 </button>
                             )}
                         </div>
+                        {/* Typing indicator */}
+                        {isTyping && !loading && (
+                            <p className="text-xs text-gray-500 mt-1 ml-1">Searching...</p>
+                        )}
                     </div>
 
                     {/* Category Filters */}

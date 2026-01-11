@@ -68,7 +68,7 @@ const Chat = () => {
                     otherUserId,
                     name: otherUser?.name || 'User',
                     avatar_url: otherUser?.avatar_url,
-                    lastMessage: lastMsg?.text || 'No messages yet',
+                    lastMessage: lastMsg?.content || 'No messages yet',
                     lastMessageTime: lastMsg?.created_at
                 };
             });
@@ -132,7 +132,7 @@ const Chat = () => {
         const messageData = {
             chat_id: selectedChat.id,
             sender_id: user.id,
-            text: text,
+            content: text,
         };
 
         const { data, error } = await db.messages.send(messageData);
@@ -254,7 +254,7 @@ const Chat = () => {
                                                                 : 'bg-white text-gray-900 border border-gray-200 rounded-bl-none'
                                                                 }`}
                                                         >
-                                                            <p>{msg.text}</p>
+                                                            <p>{msg.content}</p>
                                                             <p className={`text-[10px] mt-1 text-right ${isMyMessage ? 'text-primary-100' : 'text-gray-400'
                                                                 }`}>
                                                                 {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
