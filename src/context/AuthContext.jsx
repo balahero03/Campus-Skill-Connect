@@ -161,13 +161,33 @@ export const AuthProvider = ({ children }) => {
     };
 
     const logout = async () => {
-        const { error } = await auth.signOut();
-        if (!error) {
+        try {
+            // Clear localStorage first
+            localStorage.removeItem('userProfile');
+
+            // Sign out from Supabase
+            const { error } = await auth.signOut();
+
+            if (error) {
+                console.error('Logout error:', error);
+                // Still clear local state even if signOut fails
+            }
+
+            // Clear all state
             setUser(null);
             setUserProfile(null);
             setIsAuthenticated(false);
+
+            return { error };
+        } catch (error) {
+            console.error('Logout exception:', error);
+            // Force clear state on error
+            setUser(null);
+            setUserProfile(null);
+            setIsAuthenticated(false);
+            localStorage.removeItem('userProfile');
+            return { error };
         }
-        return { error };
     };
 
     const updateProfile = async (updates) => {

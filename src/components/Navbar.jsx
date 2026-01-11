@@ -1,5 +1,5 @@
 // Navbar Component - Professional with College Branding and Logout
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Home, Briefcase, MessageCircle, User, LogOut, GraduationCap } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -8,6 +8,7 @@ const Navbar = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const { logout, userProfile } = useAuth();
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
 
     const navItems = [
         { path: '/dashboard', label: 'Home', icon: Home },
@@ -17,8 +18,23 @@ const Navbar = () => {
     ];
 
     const handleLogout = async () => {
-        await logout();
-        navigate('/');
+        if (isLoggingOut) return; // Prevent double-click
+
+        setIsLoggingOut(true);
+        try {
+            const { error } = await logout();
+            if (error) {
+                console.error('Logout failed:', error);
+                alert('Failed to logout. Please try again.');
+            } else {
+                navigate('/');
+            }
+        } catch (err) {
+            console.error('Logout error:', err);
+            alert('An error occurred during logout.');
+        } finally {
+            setIsLoggingOut(false);
+        }
     };
 
     return (
@@ -49,8 +65,8 @@ const Navbar = () => {
                                     key={item.path}
                                     to={item.path}
                                     className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${isActive
-                                            ? 'text-primary-700 bg-primary-50 font-semibold shadow-sm'
-                                            : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50'
+                                        ? 'text-primary-700 bg-primary-50 font-semibold shadow-sm'
+                                        : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50'
                                         }`}
                                 >
                                     <Icon size={20} />
@@ -70,11 +86,17 @@ const Navbar = () => {
                             )}
                             <button
                                 onClick={handleLogout}
-                                className="flex items-center space-x-2 px-3 py-2 rounded-lg text-gray-600 hover:text-red-600 hover:bg-red-50 transition-colors duration-200"
+                                disabled={isLoggingOut}
+                                className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors duration-200 ${isLoggingOut
+                                        ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
+                                        : 'text-gray-600 hover:text-red-600 hover:bg-red-50'
+                                    }`}
                                 title="Logout"
                             >
-                                <LogOut size={18} />
-                                <span className="hidden lg:inline text-sm font-medium">Logout</span>
+                                <LogOut size={18} className={isLoggingOut ? 'animate-spin' : ''} />
+                                <span className="hidden lg:inline text-sm font-medium">
+                                    {isLoggingOut ? 'Logging out...' : 'Logout'}
+                                </span>
                             </button>
                         </div>
                     </div>
