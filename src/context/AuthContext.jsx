@@ -162,31 +162,34 @@ export const AuthProvider = ({ children }) => {
 
     const logout = async () => {
         try {
-            // Clear localStorage first
+            // Clear localStorage and state immediately for instant UI feedback
             localStorage.removeItem('userProfile');
+            setUser(null);
+            setUserProfile(null);
+            setIsAuthenticated(false);
 
-            // Sign out from Supabase
-            const { error } = await auth.signOut();
+            // Sign out from Supabase with timeout to prevent hanging
+            const signOutPromise = auth.signOut();
+            const timeoutPromise = new Promise((resolve) =>
+                setTimeout(() => resolve({ error: new Error('Signout timed out, but local session cleared') }), 5000)
+            );
+
+            const { error } = await Promise.race([signOutPromise, timeoutPromise]);
 
             if (error) {
                 console.error('Logout error:', error);
-                // Still clear local state even if signOut fails
+                // State already cleared above, so just log the error
             }
 
-            // Clear all state
-            setUser(null);
-            setUserProfile(null);
-            setIsAuthenticated(false);
-
-            return { error };
+            return { error: null }; // Return success since local state is cleared
         } catch (error) {
             console.error('Logout exception:', error);
-            // Force clear state on error
+            // Force clear state on error (redundant but safe)
             setUser(null);
             setUserProfile(null);
             setIsAuthenticated(false);
             localStorage.removeItem('userProfile');
-            return { error };
+            return { error: null }; // Return success since local state is cleared
         }
     };
 

@@ -58,17 +58,20 @@ const Chat = () => {
         }
 
         try {
-            // Add timeout to prevent infinite loading
-            const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Request timed out')), 10000)
-            );
-
-            const fetchPromise = db.chats.getByUserId(user.id);
-            const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
+            console.log('Loading chats for user:', user.id);
+            const { data, error } = await db.chats.getByUserId(user.id);
+            console.log('Chats response:', { data, error });
 
             if (error) {
                 console.error('Error loading chats:', error);
-                if (!silent) setError(error.message || 'Failed to load chats');
+                // Check for common database errors
+                let errorMessage = error.message || 'Failed to load chats';
+                if (error.code === '42P01') {
+                    errorMessage = 'Chat table does not exist. Please run the database schema.';
+                } else if (error.code === 'PGRST301') {
+                    errorMessage = 'Permission denied. Please check database policies.';
+                }
+                if (!silent) setError(errorMessage);
             } else {
                 // Format chats for display
                 const formattedChats = (data || []).map(chat => {
