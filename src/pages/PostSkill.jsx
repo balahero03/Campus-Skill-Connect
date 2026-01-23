@@ -18,11 +18,12 @@ const PostSkill = () => {
         title: '',
         description: '',
         category: '',
+        customCategory: '',
         price: '',
         availability: 'Available',
     });
 
-    const categories = ['Design', 'Editing', 'Coding', 'Tutoring', 'Repair', 'Writing'];
+    const categories = ['Design', 'Editing', 'Coding', 'Tutoring', 'Repair', 'Writing', 'Others'];
     const availabilityOptions = ['Available', 'Busy', 'Not Available'];
 
     const handleChange = (e) => {
@@ -31,6 +32,7 @@ const PostSkill = () => {
             [e.target.name]: e.target.value,
         });
     };
+
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -44,11 +46,23 @@ const PostSkill = () => {
             return;
         }
 
+        // Validate custom category if "Others" is selected
+        if (formData.category === 'Others' && !formData.customCategory.trim()) {
+            setError('Please specify your custom category');
+            setLoading(false);
+            return;
+        }
+
+        // Use custom category if "Others" is selected, otherwise use the selected category
+        const finalCategory = formData.category === 'Others'
+            ? formData.customCategory.trim()
+            : formData.category;
+
         const skillData = {
             provider_id: user.id,
             title: formData.title.trim(),
             description: formData.description.trim(),
-            category: formData.category,
+            category: finalCategory,
             price: parseFloat(formData.price),
             availability: formData.availability,
             image_url: null, // TODO: Add image upload functionality
@@ -140,6 +154,7 @@ const PostSkill = () => {
                             />
                         </div>
 
+
                         {/* Category */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -160,6 +175,27 @@ const PostSkill = () => {
                                 ))}
                             </select>
                         </div>
+
+                        {/* Custom Category Input - Shows when "Others" is selected */}
+                        {formData.category === 'Others' && (
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Specify Category *
+                                </label>
+                                <input
+                                    type="text"
+                                    name="customCategory"
+                                    value={formData.customCategory}
+                                    onChange={handleChange}
+                                    required
+                                    placeholder="e.g., Photography, Music, Sports Training, etc."
+                                    className="input-field"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Please specify what category your skill falls under
+                                </p>
+                            </div>
+                        )}
 
                         {/* Description */}
                         <div>
